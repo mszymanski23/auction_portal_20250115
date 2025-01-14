@@ -385,21 +385,25 @@ def export_auction_table():
 
 @app.route('/logout', methods=['POST'])
 def logout():
+    username = session.get('username')
     # Clear the session variables related to the user
     session.pop('username', None)
     session.pop('logged_in', None)
     # Optionally, remove the user from logged_in_users
-    username = session.get('username')
+    
     if username in logged_in_users:
         del logged_in_users[username]
     logger.info("User logged out.")
+    print(f'username {username} has logout')
     return redirect(url_for('index'))
 
 @app.route('/logout_all_users', methods=['POST'])
 def logout_all_users():
     auction_data['logout_all'] = True
     logged_in_users.clear()
+    auction_data['status'] = 'finished'
     logger.info("Admin logged out all users.")
+    print("Admin logged out all users.")
     return redirect(url_for('admin'))
 
 @app.route('/check_logout_status')
