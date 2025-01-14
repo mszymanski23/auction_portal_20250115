@@ -108,6 +108,7 @@ def login(username):
         return "User does not exist."
 
     session['username'] = username  # Set the session username
+    session['logged_in'] = True
     logger.info(f"User {username} logged in.")
     logged_in_users[username] = {'bids': 0, 'active': True, 'skips': 2}
     return redirect(url_for('user_panel', username=username))
