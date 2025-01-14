@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 220px;
+            background-color: #343a40;
+            color: white;
+            padding: 1rem;
+        }
+        .sidebar a {
+            color: white;
+            text-decoration: none;
+            display: block;
+            padding: 0.5rem 0;
+        }
+        .sidebar a:hover {
+            background-color: #495057;
+        }
+        .content {
+            margin-left: 240px;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <div class="sidebar">
+            <h2>Admin Panel</h2>
+            <a href="#users">Users</a>
+            <a href="#auction-settings">Auction Settings</a>
+            <a href="#auction-status">Auction Status</a>
+            <a href="#auction-table">Auction Table</a>
+            <a href="#round-results">Round Results</a>
+            <a href="#bid-history">Bid History</a>
+        </div>
+        <div class="content container">
+            <h1 class="my-4">Admin Panel</h1>
+            <div id="users">
+                <p>Logged in users:</p>
+                <ul class="list-group">
+                    {% for user in logged_in_users %}
+                        <li class="list-group-item">{{ user }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div id="auction-settings" class="my-4">
+                <h2>Auction Settings</h2>
+                <form action="{{ url_for('start_auction') }}" method="get">
+                    <button type="submit" class="btn btn-success">Start Auction</button>
+                </form>
+                <form action="{{ url_for('end_round') }}" method="get" class="mt-2">
+                    <button type="submit" class="btn btn-danger">End Round</button>
+                </form>
+                <form action="{{ url_for('send_results') }}" method="get" class="mt-2">
+                    <button type="submit" class="btn btn-primary">Send Results</button>
+                <form action="{{ url_for('logout_all_users') }}" method="post">
+                    <button type="submit" class="btn btn-warning">Log Out All Users</button>
+                </form>
+            </div>
+            <div id="auction-status">
+                <h2>Auction Status</h2>
+                <p>Status: {{ auction_data['status'] }}</p>
+                <p>Current Round: {{ auction_data['current_round'] }}</p>
+            </div>
+            <div id="auction-table">
+                <h2>Auction Table</h2>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Block</th>
+                            <th>Start Price</th>
+                            <th>Bid Increment</th>
+                            <th>Bid</th>
+                            <th>Current Leader</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for block, data in auction_data['block_data'].items() %}
+                            <tr>
+                                <td>{{ block }}</td>
+                                <td>{{ data['start_price'] }}</td>
+                                <td>{{ data['bid_increment'] }}</td>
+                                <td>
+                                    <form action="{{ url_for('place_bid') }}" method="post" class="d-flex">
+                                        <input type="hidden" name="user" value="{{ user }}">
+                                        <input type="hidden" name="block" value="{{ block }}">
+                                        <input type="number" name="amount" value="{{ data['start_price'] + data['bid_increment'] }}" class="form-control me-2" readonly>
+                                        <button type="submit" class="btn btn-primary">Bid</button>
+                                    </form>
+                                </td>
+                                <td>{{ auction_data['current_leaders'][block] }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div id="round-results">
+                <h2>Round Results</h2>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Round</th>
+                            <th>Block</th>
+                            <th>User</th>
+                            <th>Amount</th>
+                            <th>Winner</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in auction_data['results'] %}
+                            <tr>
+                                <td>{{ result['round'] }}</td>
+                                <td>{{ result['block'] }}</td>
+                                <td>{{ result['user'] }}</td>
+                                <td>{{ result['amount'] }}</td>
+                                <td>{{ auction_data['current_leaders'][result['block']] }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div id="bid-history">
+                <h2>Bid History</h2>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Round</th>
+                            <th>Block</th>
+                            <th>User</th>
+                            <th>Amount</th>
+                            <th>is_success</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bid in auction_data['bids'] %}
+                            <tr>
+                                <td>{{ bid['round'] }}</td>
+                                <td>{{ bid['block'] }}</td>
+                                <td>{{ bid['user'] }}</td>
+                                <td>{{ bid['amount'] }}</td>
+                                <td>{{ bid['is_success'] }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <footer class="bg-light text-center py-3 mt-4">
+        <p>&copy; 2024 Auction System All Rights Reserved powered by marcin.szymanski2@play.pl</p>
+    </footer>
+</body>
+</html>

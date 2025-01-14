@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Auction System - Welcome, {{ user }}!</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 300px;
+            background-color: #343a40;
+            color: white;
+            padding: 1rem;
+        }
+        .sidebar a {
+            color: white;
+            text-decoration: none;
+            display: block;
+            padding: 0.5rem 0;
+        }
+        .sidebar a:hover {
+            background-color: #495057;
+        }
+        .content {
+            margin-left: 320px;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2>User Panel</h2>
+            <form action="{{ url_for('logout') }}" method="post">
+                <button type="submit" class="btn btn-danger">Log Out</button>
+            </form>
+            <p>Auction Status: {{ auction_data['status'] }}</p>
+            <a href="#auction-status">Auction Status</a>
+            <a href="#auction-table">Auction Table</a>
+            <a href="#my-bids">My Bids</a>
+            <h2>Spend budget:</h2>
+            <p> <strong>{{ current_sum  }}</strong></p>
+
+            {% if auction_data['status'] == 'finished' %}
+            <h2>Eksport data</h2>
+                <div id="auction-results">
+                    <h2>Auction Results  </h2>
+                    <a href="{{ url_for('export_auction_table') }}" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Auction Table
+                    </a>
+                    <a href="{{ url_for('export_my_bids', username=user) }}" class="btn btn-primary">
+                        <i class="fas fa-download"></i> All Bids
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Main Content -->
+        <div class="content container">
+            <!-- Header -->
+            <header class="bg-primary text-white text-center py-3 mb-4">
+                <h1>Welcome, {{ user }}!</h1>
+            </header>
+
+            <!-- Auction Status -->
+            <div id="auction-status" class="alert {% if auction_data['status'] == 'running' %}alert-success{% elif auction_data['status'] == 'finished' %}alert-danger{% else %}alert-secondary{% endif %}">
+                {% if auction_data['status'] == 'running' %}
+                    The auction is currently running.
+                {% elif auction_data['status'] == 'finished' %}
+                    The auction has ended. Thank you for participating!
+                {% else %}
+                    The auction is currently on a break.
+                {% endif %}
+            </div>
+
+                        <!-- Auction Timer and Round Info -->
+                        <div id="welcome">
+                            <table class="table table-bordered">
+                                <tbody>
+                                    <tr>
+                                        <td>Time left in round: <span id="timer" class="fw-bold text-danger">{{ remaining_time }}</span> seconds</td>
+                                        <td>Current Round: {{ auction_data['current_round'] }}</td>
+                                        <td class="{% if (2 - auction_data['current_leaders'].values() | select('equalto', user) | list | length) > 0 %}bg-warning{% else %}bg-success{% endif %}">
+                                            You can bid on {{ 2 - auction_data['current_leaders'].values() | select('equalto', user) | list | length }} more blocks.
+                                        </td>
+                                        <td>
+                                        <div class="alert alert-info">
+                                            Budget (Current Bids): <strong>{{ current_sum  }}</strong>
+                
+                                        </div>
+                                        </td>
+                                        <!--<td class="{% if user_data['skips'] > 0 %}bg-danger{% else %}bg-success{% endif %}">
+                                            You can skip {{ user_data['skips'] }} more rounds.
+                                        </td>-->
+                                    </tr>
+                                </tbody>
+                            </table>
+                        
+                        </div>
+
+            <!-- sum table Table -->
+                        <!--<div class="alert alert-info">
+                            <p>Budget (Current Bids): <strong>{{ current_sum  }}</strong></p>
+
+                        </div>-->
+            <!-- Auction Table -->
+            <div id="auction-table">
+                <h2>Auction Table</h2>
+                <table class="table table-bordered table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Block</th>
+                            <th>Bids in Last Round</th> <!-- New Column -->
+                            <th>Start Price [PLN]</th>
+                            <th>Bid percentage [%%]</th>
+                            <th>Bid Increment [PLN]</th>
+                            <th>Bid Amount [PLN]</th>
+                            <th>Bid</th>
+                            <th>Are you bidding?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for block, data in auction_data['block_data'].items() %}
+                            <tr>
+                                <td>{{ block }}</td>
+                                <td>{{ data['bids_last_round'] }}</td> <!-- New Column -->
+                                <td id="start_price_{{ block }}|format_price">{{ data['start_price'] }}</td>
+                                <td>
+                                    <form action="{{ url_for('place_bid') }}" method="post" class="d-flex">
+                                        <input type="hidden" name="user" value="{{ user }}">
+                                        <input type="hidden" name="block" value="{{ block }}">
+                                        
+                                        <!-- Dropdown for Bid Increment -->
+                                        <select name="bid_percentage" class="form-select me-2" id="bid_percentage_{{ block }}" onchange="updateBidDetails('{{ block }}')">
+                                            <option value="2" selected>2%</option>
+                                            <option value="4">4%</option>
+                                            <option value="6">6%</option>
+                                            <option value="8">8%</option>
+                                            <option value="10">10%</option>
+                                        </select>
+                                   
+                                        </td>
+                                        <td id="bid_increment_{{ block }}">{{ data['default_bid_increment']|format_price }}</td>
+                                        <td id="bid_amount_{{ block }}">{{ data['default_bid_amount']|format_price }}</td>
+                                        <td>
+                                        <button type="submit" class="btn btn-primary" 
+                                            {% if auction_data['status'] != 'running' or auction_data['current_leaders'][block] == user or (2 - auction_data['current_leaders'].values() | select('equalto', user) | list | length) <= 0 %}disabled{% endif %}>
+                                            <i class="fas fa-gavel"></i> Bid
+                                        </button>
+                                    </form>
+                                </td>
+                                <td>{% if auction_data['current_leaders'][block] == user %}Yes{% else %}No{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+
+            <!-- My Bids -->
+            <div id="my-bids">
+                <h2>User bids from current round</h2>
+                <table class="table table-bordered table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Round</th>
+                            <th>Block</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bid in user_bids %}
+                            <tr>
+                                <td>{{ bid['round'] }}</td>
+                                <td>{{ bid['block'] }}</td>
+                                <td>{{ bid['amount']|format_price }}</td>
+                                <td>
+                                    {% if bid['is_success'] == 'skipped' %}
+                                        Skipped
+                                    {% elif bid['is_success'] == 'yes' %}
+                                        Successful
+                                    {% else %}
+                                        Pending
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <!-- My Previous Bids -->
+            <div id="my-previous-bids">
+                <h2>Historical user bids</h2>
+                <table class="table table-bordered table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Round</th>
+                            <th>Block</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bid in previous_round_bids %}
+                            <tr>
+                                <td>{{ bid['round'] }}</td>
+                                <td>{{ bid['block'] }}</td>
+                                <td>{{ bid['amount']|format_price }}</td>
+                                <td>{{ bid['is_success'] }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Skip Round -->
+            <!-- <div id="skip-round">
+                <form action="{{ url_for('skip_round', username=user) }}" method="get">
+                    <button type="submit" class="btn btn-warning" {% if user_data['skips'] <= 0 or auction_data['status'] != 'running' %}disabled{% endif %}>
+                        <i class="fas fa-forward"></i> Skip Round
+                    </button>
+                </form>
+                {% if user_data['skips'] <= 0 %}
+                    <p class="text-danger">You have no skips left.</p>
+                {% endif %}
+            </div>-->
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light text-center py-3 mt-4">
+        <p>&copy; 2024 Auction System All Rights Reserved powered by marcin.szymanski2@play.pl</p>
+    </footer>
+
+    <!-- Timer Script -->
+    <script>
+        let timer = document.getElementById('timer');
+        let timeLeft = {{ remaining_time }};
+        setInterval(function() {
+            if (timeLeft > 0) {
+                timeLeft--;
+                timer.textContent = timeLeft + ' seconds';
+            } else if (timeLeft === 0) {
+                timer.textContent = 'Time is up!';
+                
+                // Call the end_round endpoint to end the round
+                //fetch("{{ url_for('end_round') }}")
+                //    .then(response => response.json())
+                //    .then(data => {
+                //        console.log("Round has ended", data);
+                //    });
+            } // <-- Closing brace added here
+        }, 1000);
+
+        let previousStatus = "{{ auction_data['status'] }}";
+
+        setInterval(function() {
+            fetch("{{ url_for('check_status') }}")
+                .then(response => response.json())
+                .then(data => {
+                    const statusElement = document.getElementById('auction-status');
+                    if (data.status !== previousStatus) {
+                        previousStatus = data.status;
+                        location.reload();  // Refresh the entire page on any status change
+                    } else {
+                        if (data.status === 'finished') {
+                            statusElement.className = 'alert alert-danger';
+                            statusElement.textContent = 'The auction has ended. Thank you for participating!';
+                        } else if (data.status === 'running') {
+                            statusElement.className = 'alert alert-success';
+                            statusElement.textContent = 'The auction is currently running.';
+                        } else {
+                            statusElement.className = 'alert alert-secondary';
+                            statusElement.textContent = 'The auction is currently on a break.';
+                        }
+                    }
+                });
+        }, 1000); // Check status every second
+
+        function formatPrice(price) {
+            return price.toLocaleString('pl-PL', { minimumFractionDigits: 0 }) + ' zł';
+        }
+        
+        function extractNumericValue(price) {
+            const cleaned = price.replace(/&nbsp;/g, '') // Remove non-breaking spaces
+                                 .replace(/[^0-9.,-]/g, '') // Keep only digits, commas, dots, and minus sign
+                                 .replace(/\s/g, '') // Remove regular spaces
+                                 .replace(/,/g, ''); // Remove commas (commas could be thousands separator)
+            return parseFloat(cleaned);
+        }
+        
+        function updateBidDetails(block) {
+            const startPriceElement = document.getElementById(`start_price_${block}`);
+            const bidPercentageElement = document.getElementById(`bid_percentage_${block}`);
+            const bidAmountElement = document.getElementById(`bid_amount_${block}`);
+            const bidIncrementElement = document.getElementById(`bid_increment_${block}`);
+        
+            // Check if all elements exist before accessing them
+            if (startPriceElement && bidPercentageElement && bidAmountElement && bidIncrementElement) {
+                const startPrice = extractNumericValue(startPriceElement.innerText); // Extract numeric value
+                const bidPercentage = parseFloat(bidPercentageElement.value);
+                
+                // Calculate the bid increment and bid amount
+                const bidIncrement = startPrice * (bidPercentage / 100);
+                const bidAmount = startPrice * (1 + bidPercentage / 100);
+                
+                // Log the calculations (for debugging)
+                console.log(`Start Price: ${startPrice}, Percentage: ${bidPercentage}%`);
+                console.log(`Bid Increment: ${bidIncrement}, Bid Amount: ${bidAmount}`);
+        
+                // Update the bid increment and bid amount elements in the DOM
+                bidIncrementElement.innerText = formatPrice(bidIncrement);
+                bidAmountElement.innerText = formatPrice(bidAmount);
+            } else {
+                console.error('One or more elements not found', { startPriceElement, bidPercentageElement, bidAmountElement, bidIncrementElement });
+            }
+        }
+        function checkLogoutStatus() {
+            fetch('/check_logout_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.logout_all) {
+                        window.location.href = "{{ url_for('index') }}";
+                    }
+                });
+        }
+    
+        // Check every 5 seconds
+        setInterval(checkLogoutStatus, 1000);
+
+    </script>
+</body>
+</html>
