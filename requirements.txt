@@ -1,0 +1,6 @@
+Flask==2.2.3
+Flask-Session==0.4.0
+gunicorn==20.1.0
+Werkzeug==2.2.2
+eventlet
+babel
