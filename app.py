@@ -19,6 +19,10 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
 # Set up logging
 logger = logging.getLogger()
+# Disable werkzeug logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)  # Set to ERROR to suppress INFO logs
+
 #log = logging.getLogger('werkzeug')
 #log.setLevel(logging.Error)  # Ustawienie logowania na ERROR, żeby wyciszyć INFO i DEBUG
 
@@ -43,11 +47,9 @@ users = ['telekom1', 'telekom2', 'telekom3', 'telekom4']
 start_price_value = 356000
 logged_in_users = {}
 
-start_price_value = 356000 
-start_price_bid_increment = 2
 
 auction_data = {
-    'round_time': 60,
+    'round_time': 120,
     'break_time': 5,
     'start_price': 356000,
     'bid_increment': 7120,
@@ -57,43 +59,30 @@ auction_data = {
     'results': [],
     'current_leaders': {block: None for block in ['A', 'B', 'C', 'D', 'E', 'F', 'G']},
     'block_data': {
-        'A': {
-            'start_price': start_price_value, 
-            'bid_increment': round(start_price_value * start_price_bid_increment/100),  # 2% of start price
-            'bid_amount': round(start_price_value * (1+start_price_bid_increment/100))  # Start price * 1.02
-        },
-        'B': {
-            'start_price': 356000, 
-            'bid_increment': round(356000 * 0.02), 
-            'bid_amount': round(356000 * 1.02)
-        },
-        'C': {
-            'start_price': 356000, 
-            'bid_increment': round(356000 * 0.02), 
-            'bid_amount': round(356000 * 1.02)
-        },
-        'D': {
-            'start_price': 356000, 
-            'bid_increment': round(356000 * 0.02), 
-            'bid_amount': round(356000 * 1.02)
-        },
-        'E': {
-            'start_price': 356000, 
-            'bid_increment': round(356000 * 0.02), 
-            'bid_amount': round(356000 * 1.02)
-        },
-        'F': {
-            'start_price': 356000, 
-            'bid_increment': round(356000 * 0.02), 
-            'bid_amount': round(356000 * 1.02)
-        },
-        'G': {
-            'start_price': 356000, 
-            'bid_increment': round(356000 * 0.02), 
-            'bid_amount': round(356000 * 1.02)
-        }
+        'A': {'start_price': start_price_value, 'bid_increment': round(start_price_value * 0.02), 'bid_amount': round(start_price_value * 1.02)},
+        'B': {'start_price': 356000, 'bid_increment': round(356000 * 0.02), 'bid_amount': round(356000 * 1.02)},
+        'C': {'start_price': 356000, 'bid_increment': round(356000 * 0.02), 'bid_amount': round(356000 * 1.02)},
+        'D': {'start_price': 356000, 'bid_increment': round(356000 * 0.02), 'bid_amount': round(356000 * 1.02)},
+        'E': {'start_price': 356000, 'bid_increment': round(356000 * 0.02), 'bid_amount': round(356000 * 1.02)},
+        'F': {'start_price': 356000, 'bid_increment': round(356000 * 0.02), 'bid_amount': round(356000 * 1.02)},
+        'G': {'start_price': 356000, 'bid_increment': round(356000 * 0.02), 'bid_amount': round(356000 * 1.02)}
     }
 }
+auction_data['total_bids_left'] = len(logged_in_users) * 2  # Each user has 2 bids
+
+def check_if_all_users_bid():
+    """
+    Check if all active users have placed their bids in the current round.
+    """
+    active_users = [user for user, data in logged_in_users.items() if data.get('active', True)]
+    current_round_bids = [bid for bid in auction_data['bids'] if bid['round'] == auction_data['current_round']]
+    
+    # Check if each active user has placed at least one bid
+    for user in active_users:
+        user_bids = [bid for bid in current_round_bids if bid['user'] == user]
+        if not user_bids:
+            return False  # At least one active user hasn't bid yet
+    return True  # All active users have bid
 
 @app.route('/')
 def index():
@@ -116,7 +105,7 @@ def login(username):
     session.permanent = False  # Sessions expire when the browser is closed
     logger.info(f"User {username} logged in.")
     logged_in_users[username] = {'bids': 0, 'active': True, 'skips': 2}
-    print(logged_in_users )
+    logger.warning(logged_in_users )
     return redirect(url_for('user_panel', username=username))
 
 @app.route('/user/<username>')
@@ -124,7 +113,7 @@ def user_panel(username):
     # Check if the user is logged in
     session_username = session.get('username')
     if session_username != username or username not in logged_in_users:
-        logger.warning(f"L 125 Unauthorized access attempt by user: {username}")
+        logger.warning(f"L 117 Unauthorized access attempt by user: {username}")
         return redirect(url_for('index'))  # Redirect to the index page
     
     # if session_username != username or auction_data.get('logout_all', False):
@@ -144,6 +133,7 @@ def user_panel(username):
     #user_bids = [bid for bid in auction_data['bids'] ] # passing all bids
     #user_bids = [bid for bid in auction_data['bids'] if bid['round'] < auction_data['current_round'] or (bid['user'] == username and bid['round'] == auction_data['current_round'])]
     user_bids = [bid for bid in auction_data['bids'] if (bid['user'] == username and bid['round'] == auction_data['current_round'])] # current bids
+    logger.warning(f' L 137 user_bids {user_bids} fro username {username}')
 
     available_bids = 2
     remaining_time = get_remaining_time()  # Calculate remaining time dynamically
@@ -196,17 +186,18 @@ def start_auction():
     auction_data['results'] = []
     auction_data['current_leaders'] = {block: None for block in ['A', 'B', 'C', 'D', 'E', 'F', 'G']}
     auction_data['round_start_time'] = time.time()  # Record the start time of the auction round
+    auction_data['total_bids_left'] = len(logged_in_users) * 2  # Reset total bids left
     # Reset start_price and bid_increment to initial values
     initial_start_price = 356000
     initial_bid_increment = 7120
     for block in auction_data['block_data']:
         auction_data['block_data'][block]['start_price'] = initial_start_price
         auction_data['block_data'][block]['bid_increment'] =  initial_bid_increment
-    logger.debug(f"Auction data reset: {auction_data}")
+    logger.warning(f"Auction data reset: {auction_data}")
     
     auction_data['active_bidders'] = list(logged_in_users.keys())  # All users who are logged in at the start of the round
-    total_bids_auction = len(auction_data['active_bidders']) * 2
-    total_bids_auction_made = sum(1 for leader in auction_data['current_leaders'].values() if leader is not None)
+    # old solution  total_bids_auction = len(auction_data['active_bidders']) * 2
+    # old solution  total_bids_auction_made = sum(1 for leader in auction_data['current_leaders'].values() if leader is not None)
     non_blocking_delay(auction_data['round_time'], end_round)
     #end_round()  # Transition to the end round
     
@@ -214,14 +205,11 @@ def start_auction():
 
 @app.route('/place_bid', methods=['POST'])
 def place_bid():
-
-    #data = request.get_json()  # 🟢 Change this to request.get_json()
     user = request.form['user']
     block = request.form['block']
     bid_percentage = int(request.form.get('bid_percentage', 2))  # Default to 2% if not provided
 
     # Step 2: Calculate the bid amount
-    #amount = auction_data['block_data'][block]['start_price'] + auction_data['block_data'][block]['bid_increment']
     start_price = auction_data['block_data'][block]['start_price']
     bid_increment = round(start_price * (bid_percentage / 100))
     amount = round(start_price + bid_increment)
@@ -232,10 +220,22 @@ def place_bid():
         logged_in_users[user]['bids'] += 1
         auction_data['current_leaders'][block] = user
         
-        print(f"User {user} placed a bid of {amount} on block {block}.")
-
-        #return jsonify(success=False, message="You have reached your bid limit.")
+        logger.warning(f"User {user} placed a bid of {amount} on block {block}.")
+        auction_data['total_bids_left'] -= 1
+        print(f"--------------------------------------------------------------------------Total bids left: {auction_data['total_bids_left']}")
+        logger.warning(f"Total bids left: {auction_data['total_bids_left']}")
         
+        #return jsonify(success=False, message="You have reached your bid limit.")
+        # Check if all bids have been used
+        if auction_data['total_bids_left'] == 0:
+            logger.info("All bids have been used. Ending the round.")
+            end_round() 
+            
+        # Check if all users have bid   # old solution
+        #if check_if_all_users_bid():
+        #    logger.warning("All users have placed their bids. Ending the round.")
+        #    end_round()  
+            
     return redirect(url_for('user_panel', username=user))
 
 @app.route('/skip_round/<username>')
@@ -272,21 +272,15 @@ def end_round():
                             if bid['round'] == auction_data['current_round'] - 1 
                             and bid['block'] == block]
         auction_data['block_data'][block]['bids_last_round'] = len(previous_round_bids)
-
-    #total_bids_auction_made = sum(1 for leader in auction_data['current_leaders'].values() if leader is not None)
-    # Check if no bids were placed during the last round
-    #print(f'total_bids_auction_made {total_bids_auction_made}')
-    
     previous_round_bids = [bid for bid in auction_data['bids'] if bid['round'] == max(auction_data['current_round'] - 1,1)]
     
-    print (f'Line 302 /end_round Check for previous_round_bids {previous_round_bids}')
+    print (f'Line 277 /end_round Check for previous_round_bids {previous_round_bids}')
     if not previous_round_bids:
         logger.info("No bids were placed during the last round. Ending the auction.")
         auction_data['status'] = 'finished'
         return redirect(url_for('admin'))  # Redirect to the admin panel to show the auction has ended
 
     update_auction_table()
-    
     auction_data['round_start_time'] = time.time()  # Update the round start time for the new round
     logger.info("Round results updated, auction table refreshed.")
     time.sleep(auction_data['break_time'])  # Simulates break duration
@@ -348,14 +342,53 @@ def update_auction_table():
 @app.route('/send_results')
 def send_results():
     auction_data['status'] = 'running'
-    
     auction_data['round_start_time'] = time.time()  # Record the start time of the auction round
+
     for user in logged_in_users:
         logged_in_users[user]['bids'] = 0
+        
+        # Calculate total_bids_left based on current leaders
+    total_bids_left = 0
+    for user in logged_in_users:
+        # Count the number of blocks where the user is the current leader
+        blocks_led = sum(1 for block, leader in auction_data['current_leaders'].items() if leader == user)
+        # Each user has 2 bids, but they cannot bid on blocks they are already leading
+        bids_left_for_user = 2 - blocks_led
+        total_bids_left += bids_left_for_user
+
+    auction_data['total_bids_left'] = total_bids_left  # Update total_bids_left
+
+    logger.info(f"Auction results sent and auction reset. Total bids left: {total_bids_left}")
+        
     logger.info("Auction results sent and auction reset.")
     time.sleep(auction_data['round_time'])  # Simulates break duration
     end_round()
     return redirect(url_for('admin'))
+
+@app.route('/get_auction_data')
+def get_auction_data():
+    # Calculate total_bids_left and user_bids_left
+    total_bids_left = 0
+    user_bids_left = {}
+    for user in logged_in_users:
+        # Count the number of blocks where the user is the current leader
+        blocks_led = sum(1 for block, leader in auction_data['current_leaders'].items() if leader == user)
+        # Each user has 2 bids, but they cannot bid on blocks they are already leading
+        bids_left_for_user = 2 - blocks_led
+        user_bids_left[user] = bids_left_for_user
+        total_bids_left += bids_left_for_user
+
+    return jsonify({
+        'status': auction_data['status'],
+        'current_round': auction_data['current_round'],
+        'results': auction_data['results'],
+        'bids': auction_data['bids'],
+        'block_data': auction_data['block_data'],
+        'current_leaders': auction_data['current_leaders'],
+        'logged_in_users': logged_in_users,
+        'total_bids_left': total_bids_left,  # Add total_bids_left to the response
+        'user_bids_left': user_bids_left  # Add user_bids_left to the response
+    })
 
 @app.route('/check_status')
 def check_status():
@@ -465,7 +498,7 @@ def format_price(price):
 @app.template_filter('format_price')
 def format_price_filter(value):
     return format_price(value)
-
+ 
     
 def non_blocking_delay(duration, callback):
     """Run a delay without blocking the main thread."""
