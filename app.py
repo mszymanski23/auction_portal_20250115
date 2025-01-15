@@ -225,9 +225,12 @@ def place_bid():
         
         #return jsonify(success=False, message="You have reached your bid limit.")
         # Check if all bids have been used
+
         if auction_data['total_bids_left'] == 0:
-            logger.info("All bids have been used. Ending the round.")
-            end_round() 
+        # if auction_data['total_bids_left'] == 0 and auction_data['current_round'] > 1:
+            logger.info("All bids have been used. Ending the round after a 5-second delay.")
+            time.sleep(10)  # Add a 5-second delay
+            end_round()  
             
         # Check if all users have bid   # old solution
         #if check_if_all_users_bid():
