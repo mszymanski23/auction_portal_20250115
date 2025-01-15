@@ -7,159 +7,237 @@
     <style>
         body {
             background-color: #f8f9fa;
-        }
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            width: 220px;
-            background-color: #343a40;
-            color: white;
+            font-family: 'Arial', sans-serif;
             padding: 1rem;
         }
-        .sidebar a {
-            color: white;
-            text-decoration: none;
-            display: block;
-            padding: 0.5rem 0;
+        .container {
+            max-width: 1600px; /* Increased to accommodate three columns */
+            margin: 0 auto;
         }
-        .sidebar a:hover {
-            background-color: #495057;
+        .welcome-panel {
+            background-color: #e0e0e0;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
         }
-        .content {
-            margin-left: 240px;
+        .welcome-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #5a2d82;
+        }
+        .welcome-description {
+            font-size: 16px;
+            color: #333;
+            margin-top: 10px;
+        }
+        .section {
+            margin-bottom: 2rem;
+        }
+        .section h2 {
+            margin-bottom: 1rem;
+            color: #5a2d82;
+        }
+        .list-group-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .three-column-layout {
+            display: flex;
+            gap: 1.5rem; /* Space between columns */
+        }
+        .left-column {
+            width: 200px; /* Fixed width for Logged-in Users and Auction Settings */
+            background-color: #ffffff;
             padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .middle-column {
+            flex: 1; /* Takes up remaining space */
+            background-color: #ffffff;
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .right-column {
+            width: 400px; /* Wider width for Auction Table */
+            background-color: #ffffff;
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .admin-panel {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 10px;
+        }
+        .admin-panel h2 {
+            margin-bottom: 1rem;
+            color: #5a2d82;
+        }
+        .admin-panel .btn {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        .admin-panel .form-control {
+            margin-bottom: 1rem;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        .table th, .table td {
+            padding: 0.75rem;
+            border: 1px solid #dee2e6;
+        }
+        .table th {
+            background-color: #5a2d82;
+            color: white;
+        }
+        .table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .auction-table th, .auction-table td {
+            white-space: nowrap; /* Prevent column names from wrapping */
         }
     </style>
 </head>
 <body>
-    <div class="d-flex">
-        <div class="sidebar">
-            <h2>Admin Panel</h2>
-            <a href="#users">Users</a>
-            <a href="#auction-settings">Auction Settings</a>
-            <a href="#auction-status">Auction Status</a>
-            <a href="#auction-table">Auction Table</a>
-            <a href="#round-results">Round Results</a>
-            <a href="#bid-history">Bid History</a>
+    <div class="container">
+        <!-- Welcome Panel -->
+        <div class="welcome-panel">
+            <div class="welcome-title">Admin Panel</div>
+            <p class="welcome-description">Manage the auction system, monitor users, and control auction settings.</p>
         </div>
-        <div class="content container">
-            <h1 class="my-4">Admin Panel</h1>
-            <div id="users">
-                <p>Logged in users:</p>
-                <ul class="list-group">
-                    {% for user in logged_in_users %}
-                        <li class="list-group-item">{{ user }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <div id="auction-settings" class="my-4">
-                <h2>Auction Settings</h2>
-                <form action="{{ url_for('start_auction') }}" method="get">
-                    <button type="submit" class="btn btn-success">Start Auction</button>
-                </form>
-                <form action="{{ url_for('end_round') }}" method="get" class="mt-2">
-                    <button type="submit" class="btn btn-danger">End Round</button>
-                </form>
-                <form action="{{ url_for('send_results') }}" method="get" class="mt-2">
-                    <button type="submit" class="btn btn-primary">Send Results</button>
-                </form>
-                <form action="{{ url_for('logout_all_users') }}" method="post">
-                    <button type="submit" class="btn btn-warning">Log Out All Users</button>
-                </form>
-            </div>
-            <div id="auction-status">
-                <h2>Auction Status</h2>
-                <p>Status: {{ auction_data['status'] }}</p>
-                <p>Current Round: {{ auction_data['current_round'] }}</p>
-            </div>
-            <div id="auction-table">
-                <h2>Auction Table</h2>
-                <table class="table table-bordered">
-                    <thead>
-                        <tr>
-                            <th>Block</th>
-                            <th>Start Price</th>
-                            <th>Bid Increment</th>
-                            <th>Bid</th>
-                            <th>Current Leader</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for block, data in auction_data['block_data'].items() %}
-                            <tr>
-                                <td>{{ block }}</td>
-                                <td>{{ data['start_price'] }}</td>
-                                <td>{{ data['bid_increment'] }}</td>
-                                <td>
-                                    <form action="{{ url_for('place_bid') }}" method="post" class="d-flex">
-                                        <input type="hidden" name="user" value="{{ user }}">
-                                        <input type="hidden" name="block" value="{{ block }}">
-                                        <input type="number" name="amount" value="{{ data['start_price'] + data['bid_increment'] }}" class="form-control me-2" readonly>
-                                        <button type="submit" class="btn btn-primary">Bid</button>
-                                    </form>
-                                </td>
-                                <td>{{ auction_data['current_leaders'][block] }}</td>
-                            </tr>
+
+        <!-- Three-Column Layout for Admin Sections -->
+        <div class="three-column-layout">
+            <!-- Left Column: Users and Auction Settings -->
+            <div class="left-column">
+                <!-- Users Section -->
+                <div class="section">
+                    <h2>Logged-in Users</h2>
+                    <ul class="list-group">
+                        {% for user in logged_in_users %}
+                            <li class="list-group-item">{{ user }}</li>
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </ul>
+                </div>
+
+                <!-- Auction Settings Section -->
+                <div class="section">
+                    <h2>Auction Settings</h2>
+                    <form action="{{ url_for('start_auction') }}" method="get">
+                        <button type="submit" class="btn btn-success">Start Auction</button>
+                    </form>
+                    <form action="{{ url_for('end_round') }}" method="get" class="mt-2">
+                        <button type="submit" class="btn btn-danger">End Round</button>
+                    </form>
+                    <form action="{{ url_for('send_results') }}" method="get" class="mt-2">
+                        <button type="submit" class="btn btn-primary">Send Results</button>
+                    </form>
+                    <form action="{{ url_for('logout_all_users') }}" method="post" class="mt-2">
+                        <button type="submit" class="btn btn-warning">Log Out All Users</button>
+                    </form>
+                </div>
             </div>
-            <div id="round-results">
-                <h2>Round Results</h2>
-                <table class="table table-bordered">
-                    <thead>
-                        <tr>
-                            <th>Round</th>
-                            <th>Block</th>
-                            <th>User</th>
-                            <th>Amount</th>
-                            <th>Winner</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for result in auction_data['results'] %}
+
+            <!-- Middle Column: Auction Status, Round Results, and Bid History -->
+            <div class="middle-column">
+                <!-- Auction Status Section -->
+                <div class="section">
+                    <h2>Auction Status</h2>
+                    <p>Status: {{ auction_data['status'] }}</p>
+                    <p>Current Round: {{ auction_data['current_round'] }}</p>
+                </div>
+
+                <!-- Round Results Section -->
+                <div class="section">
+                    <h2>Round Results</h2>
+                    <table class="table table-bordered">
+                        <thead>
                             <tr>
-                                <td>{{ result['round'] }}</td>
-                                <td>{{ result['block'] }}</td>
-                                <td>{{ result['user'] }}</td>
-                                <td>{{ result['amount'] }}</td>
-                                <td>{{ auction_data['current_leaders'][result['block']] }}</td>
+                                <th>Round</th>
+                                <th>Block</th>
+                                <th>User</th>
+                                <th>Amount</th>
+                                <th>Winner</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {% for result in auction_data['results'] %}
+                                <tr>
+                                    <td>{{ result['round'] }}</td>
+                                    <td>{{ result['block'] }}</td>
+                                    <td>{{ result['user'] }}</td>
+                                    <td>{{ result['amount'] | format_price }}</td>
+                                    <td>{{ auction_data['current_leaders'][result['block']] }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Bid History Section -->
+                <div class="section">
+                    <h2>Bid History</h2>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Round</th>
+                                <th>Block</th>
+                                <th>User</th>
+                                <th>Amount</th>
+                                <th>is_success</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bid in auction_data['bids'] %}
+                                <tr>
+                                    <td>{{ bid['round'] }}</td>
+                                    <td>{{ bid['block'] }}</td>
+                                    <td>{{ bid['user'] }}</td>
+                                    <td>{{ bid['amount'] | format_price }}</td>
+                                    <td>{{ bid['is_success'] }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div id="bid-history">
-                <h2>Bid History</h2>
-                <table class="table table-bordered">
-                    <thead>
-                        <tr>
-                            <th>Round</th>
-                            <th>Block</th>
-                            <th>User</th>
-                            <th>Amount</th>
-                            <th>is_success</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for bid in auction_data['bids'] %}
+
+            <!-- Right Column: Auction Table -->
+            <div class="right-column">
+                <div class="section">
+                    <h2>Auction Table</h2>
+                    <table class="table table-bordered auction-table">
+                        <thead>
                             <tr>
-                                <td>{{ bid['round'] }}</td>
-                                <td>{{ bid['block'] }}</td>
-                                <td>{{ bid['user'] }}</td>
-                                <td>{{ bid['amount'] }}</td>
-                                <td>{{ bid['is_success'] }}</td>
+                                <th>Block</th>
+                                <th>Start Price</th>
+                                <th>Current Leader</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {% for block, data in auction_data['block_data'].items() %}
+                                <tr>
+                                    <td>{{ block }}</td>
+                                    <td>{{ data['start_price'] | format_price }}</td>
+                                    <td>{{ auction_data['current_leaders'][block] }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
+
     <footer class="bg-light text-center py-3 mt-4">
-        <p>&copy; 2024 Auction System All Rights Reserved powered by marcin.szymanski2@play.pl</p>
+        <p>&copy; 2025 Auction System | Powered by marcin.szymanski2@play.pl</p>
     </footer>
 </body>
 </html>
