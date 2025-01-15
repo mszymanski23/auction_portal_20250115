@@ -131,7 +131,7 @@
                             <tr>
                                 <td>{{ block }}</td>
                                 <td>{{ data['bids_last_round'] }}</td> <!-- New Column -->
-                                <td id="start_price_{{ block }}|format_price">{{ data['start_price'] }}</td>
+                                <td>{{ data['start_price'] | format_price }}</td>
                                 <td>
                                     <form action="{{ url_for('place_bid') }}" method="post" class="d-flex">
                                         <input type="hidden" name="user" value="{{ user }}">
