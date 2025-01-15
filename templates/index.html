@@ -97,7 +97,7 @@
 <body>
     <!-- Welcome Panel -->
     <div class="welcome-panel">
-        <div class="welcome-title">Welcome to Auction System 1.1 version</div>
+        <div class="welcome-title">Welcome to Auction System 1.2 version</div>
         <p class="welcome-description">This is a auction system where users can bid on multiple blocks. Admins have complete control over the auction, including starting, ending, and automating rounds.</p>
     </div>
 
@@ -105,6 +105,12 @@
         <!-- Far Left Sidebar -->
         <div class="sidebar col-md-2">
             <h2 class="text-center">Auction System</h2>
+            <div id="users-panel">
+                <h2>Logged-in Users</h2>
+                <ul id="users-list">
+                    <!-- Users will be populated here -->
+                </ul>
+            </div>
         </div>
 
         <!-- Left Panel for Users -->
@@ -170,9 +176,38 @@
     </div>
 
     <footer class="bg-light text-center py-3 mt-4">
-        <p>&copy; 2024 Auction System | Powered by marcin.szymanski2@play.pl</p>
+        <p>&copy; 2025 Auction System | Powered by marcin.szymanski2@play.pl</p>
     </footer>
+    <script>
+        function updateUsersList() {
+            fetch('/get_logged_in_users')
+                .then(response => response.json())
+                .then(data => {
+                    const userList = document.getElementById('users-list');
+                    userList.innerHTML = '';
+                    for (const user in data) {
+                        const li = document.createElement('li');
+                        li.textContent = user;
+                        userList.appendChild(li);
+                    }
 
+                    // Disable login for users who are already logged in
+                    const listGroupItems = document.querySelectorAll('.list-group-item');
+                    listGroupItems.forEach(item => {
+                        const username = item.textContent.trim().split(' ')[0]; // Extract username from the text
+                        if (data[username]) {
+                            item.classList.add('disabled');
+                            item.href = '#';
+                            item.innerHTML = `${username} <span class="badge bg-success">Logged in</span>`;
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching users:', error));
+        }
+    
+        // Call the function every second
+        setInterval(updateUsersList, 1000);
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
