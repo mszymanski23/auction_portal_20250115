@@ -165,19 +165,18 @@ def admin():
     logger.info("Rendering admin panel.")
     return render_template('admin.html', auction_data=auction_data, logged_in_users=logged_in_users)
 
+# Update start_auction to use the background version
 @app.route('/start_auction', methods=['GET', 'POST'])
 def start_auction():
-    """Start the auction. Optionally delay the start."""
-    
-        # If this is a POST request, handle delay logic
     if request.method == 'POST':
-        delay = request.form.get('delay', type=int, default=0)  # Delay in minutes
-        round_time = request.form.get('round_time', type=int, default=60)  # Round duration       
+        delay = request.form.get('delay', type=int, default=0)
+        round_time = request.form.get('round_time', type=int, default=60)
+        
         if delay > 0:
             logger.info(f"Delaying auction start for {delay} seconds...")
-            time.sleep(delay * 1)  # Wait for the delay period
+            time.sleep(delay)
         
-        auction_data['round_time'] = round_time  # Update the round time for this auction  
+        auction_data['round_time'] = round_time
     
     logger.info("Starting a new auction.")
     auction_data['current_round'] = 1
@@ -185,21 +184,20 @@ def start_auction():
     auction_data['bids'] = []
     auction_data['results'] = []
     auction_data['current_leaders'] = {block: None for block in ['A', 'B', 'C', 'D', 'E', 'F', 'G']}
-    auction_data['round_start_time'] = time.time()  # Record the start time of the auction round
-    auction_data['total_bids_left'] = len(logged_in_users) * 2  # Reset total bids left
-    # Reset start_price and bid_increment to initial values
+    auction_data['round_start_time'] = time.time()
+    auction_data['total_bids_left'] = len(logged_in_users) * 2
+    
     initial_start_price = 356000
     initial_bid_increment = 7120
     for block in auction_data['block_data']:
         auction_data['block_data'][block]['start_price'] = initial_start_price
-        auction_data['block_data'][block]['bid_increment'] =  initial_bid_increment
-    logger.warning(f"Auction data reset: {auction_data}")
+        auction_data['block_data'][block]['bid_increment'] = initial_bid_increment
     
-    auction_data['active_bidders'] = list(logged_in_users.keys())  # All users who are logged in at the start of the round
-    # old solution  total_bids_auction = len(auction_data['active_bidders']) * 2
-    # old solution  total_bids_auction_made = sum(1 for leader in auction_data['current_leaders'].values() if leader is not None)
-    non_blocking_delay(auction_data['round_time'], end_round)
-    #end_round()  # Transition to the end round
+    logger.warning(f"Auction data reset: {auction_data}")
+    auction_data['active_bidders'] = list(logged_in_users.keys())
+    
+    # Schedule the round end using the background version
+    non_blocking_delay(auction_data['round_time'], end_round_background)
     
     return redirect(url_for('admin'))
 
@@ -260,6 +258,7 @@ def skip_round(username):
 
 @app.route('/end_round')
 def end_round():
+    """Handle end of round state changes."""
     auction_data['status'] = 'break'
     auction_data['current_round'] += 1
     logger.info(f"Round {auction_data['current_round']} ended. Determining winners...")
@@ -267,25 +266,70 @@ def end_round():
 
     # Update block_data to store bids from the last round
     for block in auction_data['block_data']:
-        # Count the number of bids for this block in the last round
         previous_round_bids = [bid for bid in auction_data['bids'] 
                             if bid['round'] == auction_data['current_round'] - 1 
                             and bid['block'] == block]
         auction_data['block_data'][block]['bids_last_round'] = len(previous_round_bids)
-    previous_round_bids = [bid for bid in auction_data['bids'] if bid['round'] == max(auction_data['current_round'] - 1,1)]
     
-    print (f'Line 277 /end_round Check for previous_round_bids {previous_round_bids}')
+    previous_round_bids = [bid for bid in auction_data['bids'] 
+                          if bid['round'] == max(auction_data['current_round'] - 1, 1)]
+    
     if not previous_round_bids:
         logger.info("No bids were placed during the last round. Ending the auction.")
         auction_data['status'] = 'finished'
-        return redirect(url_for('admin'))  # Redirect to the admin panel to show the auction has ended
+        return redirect(url_for('admin'))
 
     update_auction_table()
-    auction_data['round_start_time'] = time.time()  # Update the round start time for the new round
+    auction_data['round_start_time'] = time.time()
     logger.info("Round results updated, auction table refreshed.")
-    time.sleep(auction_data['break_time'])  # Simulates break duration
-    send_results()  # Transition to the next round
+    
+    # If this is called from a route (not background thread)
+    if request:
+        time.sleep(auction_data['break_time'])
+        send_results()
+        return redirect(url_for('admin'))
+    
+    # If called from background thread
+    try:
+        time.sleep(auction_data['break_time'])
+        send_results()
+    except Exception as e:
+        logger.error(f"Error in background thread: {str(e)}")
+    
     return redirect(url_for('admin'))
+
+def end_round_background():
+    """Version of end_round for background thread that doesn't return HTTP response."""
+    auction_data['status'] = 'break'
+    auction_data['current_round'] += 1
+    logger.info(f"Round {auction_data['current_round']} ended. Determining winners...")
+    determine_winners()
+
+    # Update block_data to store bids from the last round
+    for block in auction_data['block_data']:
+        previous_round_bids = [bid for bid in auction_data['bids'] 
+                            if bid['round'] == auction_data['current_round'] - 1 
+                            and bid['block'] == block]
+        auction_data['block_data'][block]['bids_last_round'] = len(previous_round_bids)
+    
+    previous_round_bids = [bid for bid in auction_data['bids'] 
+                          if bid['round'] == max(auction_data['current_round'] - 1, 1)]
+    
+    if not previous_round_bids:
+        logger.info("No bids were placed during the last round. Ending the auction.")
+        auction_data['status'] = 'finished'
+        return
+
+    update_auction_table()
+    auction_data['round_start_time'] = time.time()
+    logger.info("Round results updated, auction table refreshed.")
+    
+    time.sleep(auction_data['break_time'])
+    try:
+        with app.app_context():
+            send_results()
+    except Exception as e:
+        logger.error(f"Error in background thread send_results: {str(e)}")
 
 def determine_winners():
     results = {}
@@ -504,9 +548,15 @@ def non_blocking_delay(duration, callback):
     """Run a delay without blocking the main thread."""
     def delayed_execution():
         time.sleep(duration)
-        with app.app_context():  # 🟢 Push the Flask app context
-            callback()
+        try:
+            with app.app_context():
+                # Use the background version of end_round
+                end_round_background()
+        except Exception as e:
+            logger.error(f"Error in delayed execution: {str(e)}")
+            
     thread = threading.Thread(target=delayed_execution)
+    thread.daemon = True
     thread.start()
 
 if __name__ == '__main__':
