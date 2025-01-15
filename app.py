@@ -10,9 +10,11 @@ import locale
 from babel.numbers import format_currency, format_number, format_decimal
 from decimal import Decimal, ROUND_DOWN
 import threading
+from datetime import timedelta
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'play'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 #locale.setlocale(locale.LC_ALL, 'pl_PL.UTF-8')
 
 # Set up logging
@@ -106,24 +108,32 @@ def login(username):
     if username not in users:
         logger.warning(f"Login attempt for non-existent user: {username}")
         return "User does not exist."
-
+    
+    
     session['username'] = username  # Set the session username
     session['logged_in'] = True
+    
+    session.permanent = False  # Sessions expire when the browser is closed
     logger.info(f"User {username} logged in.")
     logged_in_users[username] = {'bids': 0, 'active': True, 'skips': 2}
+    print(logged_in_users )
     return redirect(url_for('user_panel', username=username))
 
 @app.route('/user/<username>')
 def user_panel(username):
     # Check if the user is logged in
     session_username = session.get('username')
-    if session_username != username or auction_data.get('logout_all', False):
-        logger.warning(f"Unauthorized access attempt by user: {username}")
+    if session_username != username or username not in logged_in_users:
+        logger.warning(f"L 125 Unauthorized access attempt by user: {username}")
         return redirect(url_for('index'))  # Redirect to the index page
+    
+    # if session_username != username or auction_data.get('logout_all', False):
+    #     logger.warning(f"L129 Unauthorized access attempt by user: {username}")
+    #     return redirect(url_for('index'))  # Redirect to the index page
     
         # Check if the user is logged in
     if username not in logged_in_users:
-        logger.warning(f"Unauthorized access attempt by user: {username}")
+        logger.warning(f"L134 Unauthorized access attempt by user: {username}")
         return redirect(url_for('index'))  # Redirect to the index page
 
 
@@ -400,16 +410,21 @@ def logout():
 
 @app.route('/logout_all_users', methods=['POST'])
 def logout_all_users():
-    auction_data['logout_all'] = True
+    auction_data['logout_all'] = True # is it necessary?
     logged_in_users.clear()
-    auction_data['status'] = 'finished'
+    auction_data['status'] = 'break'
     logger.info("Admin logged out all users.")
     print("Admin logged out all users.")
+    auction_data['logout_all'] = False
     return redirect(url_for('admin'))
 
 @app.route('/check_logout_status')
 def check_logout_status():
     return jsonify({'logout_all': auction_data.get('logout_all', False)})
+
+@app.route('/get_logged_in_users')
+def get_logged_in_users():
+    return jsonify(logged_in_users)
 
 @app.route('/export_my_bids/<username>')
 def export_my_bids(username):
