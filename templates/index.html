@@ -75,7 +75,7 @@
                             The auction has already started. You cannot log in anymore.
                         </div>
                     {% endif %}
-                    <div class="list-group">
+                    <div class="list-group" id="users-table">
                         {% for user in users %}
                             {% if auction_status == 'running' %}
                                 <a href="#" class="list-group-item list-group-item-action disabled">{{ user }} 
@@ -118,33 +118,58 @@
                 </div>
             </div>
         </div>
-
-        <!-- Logged-in Users Section -->
-        <div class="section">
-            <h2>Logged-in Users</h2>
-            <ul id="users-list" class="list-group">
-                <!-- Users will be populated here -->
-            </ul>
-        </div>
     </div>
 
     <script>
-        function updateUsersList() {
+        function updateUsersTable() {
             fetch('/get_logged_in_users')
                 .then(response => response.json())
                 .then(data => {
-                    const userList = document.getElementById('users-list');
-                    userList.innerHTML = '';
-                    for (const user in data) {
-                        const li = document.createElement('li');
-                        li.textContent = user;
-                        li.classList.add('list-group-item');
-                        userList.appendChild(li);
-                    }
+                    const usersTable = document.getElementById('users-table');
+                    usersTable.innerHTML = ''; // Clear the current content
+        
+                    // Loop through all users and create the appropriate list items
+                    {% for user in users %}
+                        if (data['{{ user }}']) {
+                            // User is logged in and active
+                            if (data['{{ user }}'].active) {
+                                usersTable.innerHTML += `
+                                    <a href="#" class="list-group-item list-group-item-action disabled">{{ user }} 
+                                        <span class="badge bg-success">Logged in</span>
+                                    </a>
+                                `;
+                            }
+                            // User is logged in but excluded
+                            else {
+                                usersTable.innerHTML += `
+                                    <a href="#" class="list-group-item list-group-item-action disabled">{{ user }} 
+                                        <span class="badge bg-danger">Excluded</span>
+                                    </a>
+                                `;
+                            }
+                        }
+                        // Auction is running, disable all users
+                        else if ('{{ auction_status }}' === 'running') {
+                            usersTable.innerHTML += `
+                                <a href="#" class="list-group-item list-group-item-action disabled">{{ user }} 
+                                    <span class="badge bg-danger">Auction Running</span>
+                                </a>
+                            `;
+                        }
+                        // User is not logged in
+                        else {
+                            usersTable.innerHTML += `
+                                <a href="{{ url_for('login', username=user) }}" class="list-group-item list-group-item-action">{{ user }}</a>
+                            `;
+                        }
+                    {% endfor %}
                 })
-                .catch(error => console.error('Error fetching users:', error));
+                .catch(error => console.error('Error fetching logged-in users:', error));
         }
-        setInterval(updateUsersList, 1000);
+        
+        // Update the table every second
+        setInterval(updateUsersTable, 1000);
+
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

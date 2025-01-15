@@ -120,13 +120,18 @@
                 <!-- Users Section -->
                 <div class="section">
                     <h2>Logged-in Users</h2>
-                    <ul class="list-group">
+                    <ul class="list-group" id="logged-in-users-list">
                         {% for user in logged_in_users %}
                             <li class="list-group-item">{{ user }}</li>
                         {% endfor %}
                     </ul>
                 </div>
-
+                <div class="section">
+                    <h2>Auction Status</h2>
+                    <p>Status: <span id="auction-status">{{ auction_data['status'] }}</span></p>
+                    <p>Current Round: <span id="current-round">{{ auction_data['current_round'] }}</span></p>
+                    <p>Total Bids Left: <span id="total-bids-left">{{ auction_data['total_bids_left'] }}</span></p>
+                </div>
                 <!-- Auction Settings Section -->
                 <div class="section">
                     <h2>Auction Settings</h2>
@@ -150,14 +155,14 @@
                 <!-- Auction Status Section -->
                 <div class="section">
                     <h2>Auction Status</h2>
-                    <p>Status: {{ auction_data['status'] }}</p>
-                    <p>Current Round: {{ auction_data['current_round'] }}</p>
+                    <p>Status: <span id="auction-status">{{ auction_data['status'] }}</span></p>
+                    <p>Current Round: <span id="current-round">{{ auction_data['current_round'] }}</span></p>
                 </div>
 
                 <!-- Round Results Section -->
                 <div class="section">
                     <h2>Round Results</h2>
-                    <table class="table table-bordered">
+                    <table class="table table-bordered" id="round-results-table">
                         <thead>
                             <tr>
                                 <th>Round</th>
@@ -184,7 +189,7 @@
                 <!-- Bid History Section -->
                 <div class="section">
                     <h2>Bid History</h2>
-                    <table class="table table-bordered">
+                    <table class="table table-bordered" id="bid-history-table">
                         <thead>
                             <tr>
                                 <th>Round</th>
@@ -209,11 +214,12 @@
                 </div>
             </div>
 
-            <!-- Right Column: Auction Table -->
+            <!-- Right Column: Auction Table and User Bids Left -->
             <div class="right-column">
+                <!-- Auction Table -->
                 <div class="section">
                     <h2>Auction Table</h2>
-                    <table class="table table-bordered auction-table">
+                    <table class="table table-bordered auction-table" id="auction-table">
                         <thead>
                             <tr>
                                 <th>Block</th>
@@ -232,6 +238,22 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- User Bids Left Table -->
+                <div class="section">
+                    <h2>User Bids Left</h2>
+                    <table class="table table-bordered" id="user-bids-left-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Bids Left</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows will be populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -239,5 +261,78 @@
     <footer class="bg-light text-center py-3 mt-4">
         <p>&copy; 2025 Auction System | Powered by marcin.szymanski2@play.pl</p>
     </footer>
+
+    <!-- JavaScript for Auto-Refresh -->
+    <script>
+        function fetchAuctionData() {
+            fetch('/get_auction_data')  // Endpoint to fetch updated auction data
+                .then(response => response.json())
+                .then(data => {
+                    // Update Auction Status
+                    document.getElementById('auction-status').textContent = data.status;
+                    document.getElementById('current-round').textContent = data.current_round;
+        
+                    // Update Round Results Table
+                    const roundResultsTable = document.getElementById('round-results-table').getElementsByTagName('tbody')[0];
+                    roundResultsTable.innerHTML = '';
+                    data.results.forEach(result => {
+                        const row = roundResultsTable.insertRow();
+                        row.insertCell().textContent = result.round;
+                        row.insertCell().textContent = result.block;
+                        row.insertCell().textContent = result.user;
+                        row.insertCell().textContent = result.amount;
+                        row.insertCell().textContent = data.current_leaders[result.block];
+                    });
+        
+                    // Update Bid History Table
+                    const bidHistoryTable = document.getElementById('bid-history-table').getElementsByTagName('tbody')[0];
+                    bidHistoryTable.innerHTML = '';
+                    data.bids.forEach(bid => {
+                        const row = bidHistoryTable.insertRow();
+                        row.insertCell().textContent = bid.round;
+                        row.insertCell().textContent = bid.block;
+                        row.insertCell().textContent = bid.user;
+                        row.insertCell().textContent = bid.amount;
+                        row.insertCell().textContent = bid.is_success;
+                    });
+        
+                    // Update Auction Table
+                    const auctionTable = document.getElementById('auction-table').getElementsByTagName('tbody')[0];
+                    auctionTable.innerHTML = '';
+                    for (const block in data.block_data) {
+                        const row = auctionTable.insertRow();
+                        row.insertCell().textContent = block;
+                        row.insertCell().textContent = data.block_data[block].start_price;
+                        row.insertCell().textContent = data.current_leaders[block];
+                    }
+        
+                    // Update User Bids Left Table
+                    const userBidsLeftTable = document.getElementById('user-bids-left-table').getElementsByTagName('tbody')[0];
+                    userBidsLeftTable.innerHTML = '';
+                    for (const user in data.user_bids_left) {
+                        const row = userBidsLeftTable.insertRow();
+                        row.insertCell().textContent = user;
+                        row.insertCell().textContent = data.user_bids_left[user]; // Bids left for each user
+                    }
+        
+                    // Display Total Bids Left
+                    const totalBidsLeftElement = document.getElementById('total-bids-left');
+                    if (totalBidsLeftElement) {
+                        totalBidsLeftElement.textContent = data.total_bids_left || 0;
+                    }
+                })
+                .catch(error => console.error('Error fetching auction data:', error));
+        }
+
+        // Refresh data every second
+        function startAutoRefresh() {
+            setInterval(() => {
+                fetchAuctionData();  // Fetch and update data every second
+            }, 1000); // Refresh every second
+        }
+
+        // Start auto-refresh when the page loads
+        startAutoRefresh();
+    </script>
 </body>
 </html>
