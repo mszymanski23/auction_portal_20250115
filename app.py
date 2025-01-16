@@ -49,7 +49,7 @@ logged_in_users = {}
 
 
 auction_data = {
-    'round_time': 120,
+    'round_time': 60,
     'break_time': 5,
     'start_price': 356000,
     'bid_increment': 7120,
@@ -76,7 +76,7 @@ def check_if_all_users_bid():
     """
     active_users = [user for user, data in logged_in_users.items() if data.get('active', True)]
     current_round_bids = [bid for bid in auction_data['bids'] if bid['round'] == auction_data['current_round']]
-    
+
     # Check if each active user has placed at least one bid
     for user in active_users:
         user_bids = [bid for bid in current_round_bids if bid['user'] == user]
@@ -86,9 +86,9 @@ def check_if_all_users_bid():
 
 @app.route('/')
 def index():
-    return render_template('index.html', 
-                           users=users, 
-                           logged_in_users=logged_in_users, 
+    return render_template('index.html',
+                           users=users,
+                           logged_in_users=logged_in_users,
                            auction_status=auction_data['status'])
 
 
@@ -97,11 +97,11 @@ def login(username):
     if username not in users:
         logger.warning(f"Login attempt for non-existent user: {username}")
         return "User does not exist."
-    
-    
+
+
     session['username'] = username  # Set the session username
     session['logged_in'] = True
-    
+
     session.permanent = False  # Sessions expire when the browser is closed
     logger.info(f"User {username} logged in.")
     logged_in_users[username] = {'bids': 0, 'active': True, 'skips': 2}
@@ -115,11 +115,11 @@ def user_panel(username):
     if session_username != username or username not in logged_in_users:
         logger.warning(f"L 117 Unauthorized access attempt by user: {username}")
         return redirect(url_for('index'))  # Redirect to the index page
-    
+
     # if session_username != username or auction_data.get('logout_all', False):
     #     logger.warning(f"L129 Unauthorized access attempt by user: {username}")
     #     return redirect(url_for('index'))  # Redirect to the index page
-    
+
         # Check if the user is logged in
     if username not in logged_in_users:
         logger.warning(f"L134 Unauthorized access attempt by user: {username}")
@@ -137,11 +137,11 @@ def user_panel(username):
 
     available_bids = 2
     remaining_time = get_remaining_time()  # Calculate remaining time dynamically
-    
+
     # Calculate sums
     current_lead_blocks = [block for block, leader in auction_data['current_leaders'].items() if leader == username]
     current_sum = sum(auction_data['block_data'][block]['start_price'] for block in current_lead_blocks)
-    
+
     previous_round_bids = [bid for bid in auction_data['bids'] if bid['round'] < auction_data['current_round']  and bid['user'] == username]
 
         # Calculate 2% of start price and 1.02 * start price for each block
@@ -156,7 +156,7 @@ def user_panel(username):
                            user_data=logged_in_users[username],
                            available_bids=available_bids,
                            remaining_time=remaining_time,
-                           current_sum=current_sum, 
+                           current_sum=current_sum,
                            previous_round_bids=previous_round_bids,
                            )
 
@@ -171,13 +171,13 @@ def start_auction():
     if request.method == 'POST':
         delay = request.form.get('delay', type=int, default=0)
         round_time = request.form.get('round_time', type=int, default=60)
-        
+
         if delay > 0:
             logger.info(f"Delaying auction start for {delay} seconds...")
             time.sleep(delay)
-        
+
         auction_data['round_time'] = round_time
-    
+
     logger.info("Starting a new auction.")
     auction_data['current_round'] = 1
     auction_data['status'] = 'running'
@@ -186,19 +186,19 @@ def start_auction():
     auction_data['current_leaders'] = {block: None for block in ['A', 'B', 'C', 'D', 'E', 'F', 'G']}
     auction_data['round_start_time'] = time.time()
     auction_data['total_bids_left'] = len(logged_in_users) * 2
-    
+
     initial_start_price = 356000
     initial_bid_increment = 7120
     for block in auction_data['block_data']:
         auction_data['block_data'][block]['start_price'] = initial_start_price
         auction_data['block_data'][block]['bid_increment'] = initial_bid_increment
-    
+
     logger.warning(f"Auction data reset: {auction_data}")
     auction_data['active_bidders'] = list(logged_in_users.keys())
-    
+
     # Schedule the round end using the background version
     non_blocking_delay(auction_data['round_time'], end_round_background)
-    
+
     return redirect(url_for('admin'))
 
 @app.route('/place_bid', methods=['POST'])
@@ -212,31 +212,31 @@ def place_bid():
     bid_increment = round(start_price * (bid_percentage / 100))
     amount = round(start_price + bid_increment)
 
-    
+
     if logged_in_users[user]['bids'] < 2:
         auction_data['bids'].append({'user': user, 'block': block, 'amount': amount, 'round': auction_data['current_round']})
         logged_in_users[user]['bids'] += 1
         auction_data['current_leaders'][block] = user
-        
+
         logger.warning(f"User {user} placed a bid of {amount} on block {block}.")
         auction_data['total_bids_left'] -= 1
         print(f"--------------------------------------------------------------------------Total bids left: {auction_data['total_bids_left']}")
         logger.warning(f"Total bids left: {auction_data['total_bids_left']}")
-        
+
         #return jsonify(success=False, message="You have reached your bid limit.")
         # Check if all bids have been used
-
+        # Check if all bids have been used and the round number is greater than 1
         if auction_data['total_bids_left'] == 0:
-        # if auction_data['total_bids_left'] == 0 and auction_data['current_round'] > 1:
+
+        #if auction_data['total_bids_left'] == 0 and auction_data['current_round'] > 1:
             logger.info("All bids have been used. Ending the round after a 5-second delay.")
-            time.sleep(10)  # Add a 5-second delay
-            end_round()  
-            
+            end_round()
+
         # Check if all users have bid   # old solution
         #if check_if_all_users_bid():
         #    logger.warning("All users have placed their bids. Ending the round.")
-        #    end_round()  
-            
+        #    end_round()
+
     return redirect(url_for('user_panel', username=user))
 
 @app.route('/skip_round/<username>')
@@ -259,6 +259,29 @@ def skip_round(username):
 
     return redirect(url_for('user_panel', username=username))
 
+@app.route('/send_results')
+def send_results():
+    auction_data['status'] = 'running'
+    auction_data['round_start_time'] = time.time()
+
+    for user in logged_in_users:
+        logged_in_users[user]['bids'] = 0
+
+    # Calculate total_bids_left based on current leaders
+    total_bids_left = 0
+    for user in logged_in_users:
+        blocks_led = sum(1 for block, leader in auction_data['current_leaders'].items() if leader == user)
+        bids_left_for_user = 2 - blocks_led
+        total_bids_left += bids_left_for_user
+
+    auction_data['total_bids_left'] = total_bids_left
+    logger.info(f"Auction results sent and auction reset. Total bids left: {total_bids_left}")
+
+    # Schedule the next round end in a background thread
+    non_blocking_delay(auction_data['round_time'], end_round_background)
+
+    return jsonify(success=True)  # Return a JSON response instead of redirecting
+
 @app.route('/end_round')
 def end_round():
     """Handle end of round state changes."""
@@ -269,14 +292,14 @@ def end_round():
 
     # Update block_data to store bids from the last round
     for block in auction_data['block_data']:
-        previous_round_bids = [bid for bid in auction_data['bids'] 
-                            if bid['round'] == auction_data['current_round'] - 1 
+        previous_round_bids = [bid for bid in auction_data['bids']
+                            if bid['round'] == auction_data['current_round'] - 1
                             and bid['block'] == block]
         auction_data['block_data'][block]['bids_last_round'] = len(previous_round_bids)
-    
-    previous_round_bids = [bid for bid in auction_data['bids'] 
+
+    previous_round_bids = [bid for bid in auction_data['bids']
                           if bid['round'] == max(auction_data['current_round'] - 1, 1)]
-    
+
     if not previous_round_bids:
         logger.info("No bids were placed during the last round. Ending the auction.")
         auction_data['status'] = 'finished'
@@ -285,20 +308,21 @@ def end_round():
     update_auction_table()
     auction_data['round_start_time'] = time.time()
     logger.info("Round results updated, auction table refreshed.")
-    
-    # If this is called from a route (not background thread)
-    if request:
+
+    # Run the break and send_results in a background thread
+    def background_task():
         time.sleep(auction_data['break_time'])
-        send_results()
-        return redirect(url_for('admin'))
-    
-    # If called from background thread
-    try:
-        time.sleep(auction_data['break_time'])
-        send_results()
-    except Exception as e:
-        logger.error(f"Error in background thread: {str(e)}")
-    
+        try:
+            with app.app_context():
+                send_results()
+        except Exception as e:
+            logger.error(f"Error in background task: {e}")
+
+    # Start the background thread
+    thread = threading.Thread(target=background_task)
+    thread.daemon = True
+    thread.start()
+
     return redirect(url_for('admin'))
 
 def end_round_background():
@@ -310,14 +334,14 @@ def end_round_background():
 
     # Update block_data to store bids from the last round
     for block in auction_data['block_data']:
-        previous_round_bids = [bid for bid in auction_data['bids'] 
-                            if bid['round'] == auction_data['current_round'] - 1 
+        previous_round_bids = [bid for bid in auction_data['bids']
+                            if bid['round'] == auction_data['current_round'] - 1
                             and bid['block'] == block]
         auction_data['block_data'][block]['bids_last_round'] = len(previous_round_bids)
-    
-    previous_round_bids = [bid for bid in auction_data['bids'] 
+
+    previous_round_bids = [bid for bid in auction_data['bids']
                           if bid['round'] == max(auction_data['current_round'] - 1, 1)]
-    
+
     if not previous_round_bids:
         logger.info("No bids were placed during the last round. Ending the auction.")
         auction_data['status'] = 'finished'
@@ -326,7 +350,7 @@ def end_round_background():
     update_auction_table()
     auction_data['round_start_time'] = time.time()
     logger.info("Round results updated, auction table refreshed.")
-    
+
     time.sleep(auction_data['break_time'])
     try:
         with app.app_context():
@@ -375,7 +399,7 @@ def determine_bidders():
 
     for user, user_data in logged_in_users.items():
         total_bids_auction_attempt = len([bid for bid in auction_data['bids'] if bid['round'] == auction_data['current_round']])
-        
+
         return required_bids_per_user
 
 def update_auction_table():
@@ -385,32 +409,6 @@ def update_auction_table():
         auction_data['block_data'][block]['start_price'] = result['amount']
         auction_data['block_data'][block]['bid_increment'] = round(result['amount'] * 0.02)
         logger.debug(f"Updated auction table for block {block}: Start Price = {auction_data['block_data'][block]['start_price']}, Bid Increment = {auction_data['block_data'][block]['bid_increment']}")
-
-@app.route('/send_results')
-def send_results():
-    auction_data['status'] = 'running'
-    auction_data['round_start_time'] = time.time()  # Record the start time of the auction round
-
-    for user in logged_in_users:
-        logged_in_users[user]['bids'] = 0
-        
-        # Calculate total_bids_left based on current leaders
-    total_bids_left = 0
-    for user in logged_in_users:
-        # Count the number of blocks where the user is the current leader
-        blocks_led = sum(1 for block, leader in auction_data['current_leaders'].items() if leader == user)
-        # Each user has 2 bids, but they cannot bid on blocks they are already leading
-        bids_left_for_user = 2 - blocks_led
-        total_bids_left += bids_left_for_user
-
-    auction_data['total_bids_left'] = total_bids_left  # Update total_bids_left
-
-    logger.info(f"Auction results sent and auction reset. Total bids left: {total_bids_left}")
-        
-    logger.info("Auction results sent and auction reset.")
-    time.sleep(auction_data['round_time'])  # Simulates break duration
-    end_round()
-    return redirect(url_for('admin'))
 
 @app.route('/get_auction_data')
 def get_auction_data():
@@ -442,9 +440,9 @@ def check_status():
     return jsonify(status=auction_data['status'], round=auction_data['current_round'])
 
 def get_remaining_time():
-    
+
     if 'round_start_time' not in auction_data or auction_data['status'] in ['finished', 'waiting']:
-        return 0  # No active round 
+        return 0  # No active round
     elapsed_time = time.time() - auction_data['round_start_time']
     if auction_data['status'] == 'running':
         remaining = max(0, auction_data['round_time'] - int(elapsed_time))
@@ -452,7 +450,7 @@ def get_remaining_time():
         remaining = max(0, auction_data['break_time'] - int(elapsed_time))
     else:
         remaining = 0  # Default case if status is unexpected
-    
+
     logger.info(f"remaining time: {remaining}")
     return remaining
 
@@ -481,7 +479,7 @@ def logout():
     session.pop('username', None)
     session.pop('logged_in', None)
     # Optionally, remove the user from logged_in_users
-    
+
     if username in logged_in_users:
         del logged_in_users[username]
     logger.info("User logged out.")
@@ -545,19 +543,18 @@ def format_price(price):
 @app.template_filter('format_price')
 def format_price_filter(value):
     return format_price(value)
- 
-    
+
+
 def non_blocking_delay(duration, callback):
     """Run a delay without blocking the main thread."""
     def delayed_execution():
         time.sleep(duration)
         try:
             with app.app_context():
-                # Use the background version of end_round
-                end_round_background()
+                callback()
         except Exception as e:
-            logger.error(f"Error in delayed execution: {str(e)}")
-            
+            logger.error(f"Error in delayed execution: {e}")
+
     thread = threading.Thread(target=delayed_execution)
     thread.daemon = True
     thread.start()
